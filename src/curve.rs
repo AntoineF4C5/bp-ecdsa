@@ -8,7 +8,9 @@ use bellpepper_core::{
 use crypto_bigint::{Encoding, U256};
 use ff::{PrimeField, PrimeFieldBits};
 
-use crate::utils::{is_greater, is_greater_eq, num_to_bits_le};
+use crate::utils::{
+    conditionally_select, is_equal, is_greater, is_greater_eq, is_zero, num_to_bits_le, sub,
+};
 
 #[derive(Clone)]
 pub struct AllocatedAffinePoint<F: PrimeField> {
@@ -42,12 +44,8 @@ impl<F: PrimeField<Repr = [u8; 32]> + PrimeFieldBits> AllocatedAffinePoint<F> {
     where
         CS: ConstraintSystem<F>,
     {
-        let x_is_eq = self
-            .x
-            .is_equal(&mut cs.namespace(|| "x1 == x2"), &other.x)?;
-        let y_is_eq = self
-            .y
-            .is_equal(&mut cs.namespace(|| "y1 == y2"), &other.y)?;
+        let x_is_eq = is_equal(&mut cs.namespace(|| "x1 == x2"), &self.x, &other.x)?;
+        let y_is_eq = is_equal(&mut cs.namespace(|| "y1 == y2"), &self.y, &other.y)?;
 
         Boolean::and(&mut cs.namespace(|| "coor are equal"), &x_is_eq, &y_is_eq)
     }
@@ -98,14 +96,14 @@ impl<F: PrimeField<Repr = [u8; 32]> + PrimeFieldBits> AllocatedAffinePoint<F> {
     where
         CS: ConstraintSystem<F>,
     {
-        let x = AllocatedNum::conditionally_select(
+        let x = conditionally_select(
             &mut cs.namespace(|| "allocate value of output x coordinate"),
             &a.x,
             &b.x,
             condition,
         )?;
 
-        let y = AllocatedNum::conditionally_select(
+        let y = conditionally_select(
             &mut cs.namespace(|| "allocate value of output y coordinate"),
             &a.y,
             &b.y,
@@ -207,10 +205,10 @@ impl<F: PrimeField<Repr = [u8; 32]> + PrimeFieldBits> AllocatedAffinePoint<F> {
 
         let px_sq = p.x.square(&mut cs.namespace(|| "p.x * p.x"))?;
 
-        let is_x_eq = p.x.is_equal(&mut cs.namespace(|| "p.x == q.x"), &q.x)?;
+        let is_x_eq = is_equal(&mut cs.namespace(|| "p.x == q.x"), &p.x, &q.x)?;
 
-        let is_px_zero = p.x.is_zero(&mut cs.namespace(|| "p.x == 0"))?;
-        let is_qx_zero = q.x.is_zero(&mut cs.namespace(|| "q.x == 0"))?;
+        let is_px_zero = is_zero(&mut cs.namespace(|| "p.x == 0"), &p.x)?;
+        let is_qx_zero = is_zero(&mut cs.namespace(|| "q.x == 0"), &q.x)?;
 
         let is_either_x_zero = Boolean::or(
             &mut cs.namespace(|| "p.x==0 OR q.x==0"),
@@ -218,7 +216,7 @@ impl<F: PrimeField<Repr = [u8; 32]> + PrimeFieldBits> AllocatedAffinePoint<F> {
             &is_qx_zero,
         )?;
 
-        let dx = q.x.sub(&mut cs.namespace(|| "qx-px"), &p.x)?;
+        let dx = sub(&mut cs.namespace(|| "qx-px"), &q.x, &p.x)?;
 
         let dy = AllocatedNum::alloc(&mut cs.namespace(|| "alloc dy"), || {
             if is_x_eq
@@ -281,7 +279,7 @@ impl<F: PrimeField<Repr = [u8; 32]> + PrimeFieldBits> AllocatedAffinePoint<F> {
             |lc| lc + px_sq.get_variable() + px_sq.get_variable() + px_sq.get_variable(),
         );
 
-        let lambda = AllocatedNum::conditionally_select(
+        let lambda = conditionally_select(
             &mut cs.namespace(|| "select lambda"),
             &lambda_a,
             &lambda_b,
@@ -325,39 +323,39 @@ impl<F: PrimeField<Repr = [u8; 32]> + PrimeFieldBits> AllocatedAffinePoint<F> {
             |lc| lc + out_ay.get_variable() + p.y.get_variable(),
         );
 
-        let out_bx = AllocatedNum::conditionally_select(
+        let out_bx = conditionally_select(
             &mut cs.namespace(|| "select out_bx"),
             &out_ax,
             &zero,
             &is_either_x_zero,
         )?;
-        let out_by = AllocatedNum::conditionally_select(
+        let out_by = conditionally_select(
             &mut cs.namespace(|| "select out_by"),
             &out_ay,
             &zero,
             &is_either_x_zero,
         )?;
 
-        let out_cx = AllocatedNum::conditionally_select(
+        let out_cx = conditionally_select(
             &mut cs.namespace(|| "select out_cx"),
             &zero,
             &q.x,
             &is_px_zero,
         )?;
-        let out_cy = AllocatedNum::conditionally_select(
+        let out_cy = conditionally_select(
             &mut cs.namespace(|| "select out_cy"),
             &zero,
             &q.y,
             &is_px_zero,
         )?;
 
-        let out_dx = AllocatedNum::conditionally_select(
+        let out_dx = conditionally_select(
             &mut cs.namespace(|| "select out_dx"),
             &zero,
             &p.x,
             &is_qx_zero,
         )?;
-        let out_dy = AllocatedNum::conditionally_select(
+        let out_dy = conditionally_select(
             &mut cs.namespace(|| "select out_dy"),
             &zero,
             &p.y,
@@ -404,18 +402,10 @@ impl<F: PrimeField<Repr = [u8; 32]> + PrimeFieldBits> AllocatedAffinePoint<F> {
         let mut sum_y = out_by.add(&mut cs.namespace(|| "add out_cy"), &out_cy)?;
         sum_y = sum_y.add(&mut cs.namespace(|| "add out_dy"), &out_dy)?;
 
-        let out_x = AllocatedNum::conditionally_select(
-            &mut cs.namespace(|| "calc out_x"),
-            &sum_x,
-            &zero,
-            &zeroize,
-        )?;
-        let out_y = AllocatedNum::conditionally_select(
-            &mut cs.namespace(|| "calc out_y"),
-            &sum_y,
-            &zero,
-            &zeroize,
-        )?;
+        let out_x =
+            conditionally_select(&mut cs.namespace(|| "calc out_x"), &sum_x, &zero, &zeroize)?;
+        let out_y =
+            conditionally_select(&mut cs.namespace(|| "calc out_y"), &sum_y, &zero, &zeroize)?;
 
         Ok(AllocatedAffinePoint { x: out_x, y: out_y })
     }
@@ -508,13 +498,13 @@ impl<F: PrimeField<Repr = [u8; 32]> + PrimeFieldBits> AllocatedAffinePoint<F> {
                 step_point.clone(),
             )?;
 
-            let output_x = AllocatedNum::conditionally_select(
+            let output_x = conditionally_select(
                 &mut cs.namespace(|| format!("conditionally select x coordinate in step {i}")),
                 &output0.x,
                 &output1.x,
                 bit,
             )?;
-            let output_y = AllocatedNum::conditionally_select(
+            let output_y = conditionally_select(
                 &mut cs.namespace(|| format!("conditionally select y coordinate in step {i}")),
                 &output0.y,
                 &output1.y,
@@ -851,7 +841,7 @@ impl<F: PrimeField<Repr = [u8; 32]> + PrimeFieldBits> AllocatedAffinePoint<F> {
             bhi_alloc.clone(),
             129,
         )?;
-        let beta = ahi_alloc.is_equal(&mut cs.namespace(|| "ahi == bhi"), &bhi_alloc)?;
+        let beta = is_equal(&mut cs.namespace(|| "ahi == bhi"), &ahi_alloc, &bhi_alloc)?;
         let gamma = is_greater_eq(&mut cs.namespace(|| "alo ≥ blo"), alo_alloc, blo_alloc, 129)?;
 
         let beta_and_gamma = Boolean::and(&mut cs.namespace(|| "beta & gamma"), &beta, &gamma)?;
