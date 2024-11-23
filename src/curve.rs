@@ -25,10 +25,10 @@ impl<F: PrimeField<Repr = [u8; 32]> + PrimeFieldBits> AllocatedAffinePoint<F> {
     {
         // Check (x, y) on secp256k1
         let lhs = y.square();
-        let rhs = x.square() * x + F::from(7u64);
-        if (lhs != F::ZERO) & (rhs != F::from(7u64)) {
+        let rhs = x.square() * x + F::from(5u64);
+        if (lhs != F::ZERO) & (rhs != F::from(5u64)) {
             // assert only for points other than (0, 0)
-            assert_eq!(lhs, rhs, "(x,y) not on secp256k1");
+            assert_eq!(lhs, rhs, "(x,y) not on PallasCurve");
         }
 
         let x_alloc = AllocatedNum::alloc(&mut cs.namespace(|| "alloc x"), || Ok(x))?;
