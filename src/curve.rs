@@ -717,11 +717,11 @@ impl<F: PrimeField<Repr = [u8; 32]> + PrimeFieldBits> AllocatedAffinePoint<F> {
         CS: ConstraintSystem<F>,
     {
         let q =
-            U256::from_be_hex("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141"); // The order of the scalar field
+            U256::from_be_hex("40000000000000000000000000000000224698fc0994a8dd8c46eb2100000001"); // The order of the scalar field
         let qlo = q & U256::from_u128(u128::MAX);
         let qhi = q >> 128;
         let tq =
-            U256::from_be_hex("fffffffffffffffffffffffffffffffd755db9cd5e9140777fa4bd19a06c8282"); // (q - 2^256) % q;
+            U256::from_be_hex("00000000000000000000000000000000891a63f02652a376311bac8400000004"); // (q - 2^256) % q;
         let tqlo = tq & U256::from_u128(u128::MAX);
         let tqhi = tq >> 128;
         let slo = s & U256::from_u128(u128::MAX);
@@ -946,7 +946,11 @@ mod test {
     use bellpepper_core::test_cs::TestConstraintSystem;
     use crypto_bigint::{CheckedAdd, CheckedSub, Encoding, Integer, U256};
     use ff::Field;
-    use halo2curves::secp256k1::{Fp, Fq, Secp256k1Affine};
+    use halo2curves::{
+        group::{cofactor::CofactorCurveAffine, Group},
+        CurveAffine,
+    };
+    use pasta_curves::pallas::{Affine, Base as Fp, Point, Scalar as Fq};
     use rand_core::SeedableRng;
     use rand_xorshift::XorShiftRng;
     use std::ops::{Mul, Neg};
@@ -960,18 +964,18 @@ mod test {
         {
             let mut cs = TestConstraintSystem::<Fp>::new();
 
-            let p1 = Secp256k1Affine::random(&mut rng);
-            let p2 = Secp256k1Affine::random(&mut rng);
+            let p1: Affine = Point::random(&mut rng).into();
+            let p2: Affine = Point::random(&mut rng).into();
             let p1_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc p1"),
-                p1.x,
-                p1.y,
+                p1.coordinates().unwrap().x().clone(),
+                p1.coordinates().unwrap().y().clone(),
             )
             .unwrap();
             let p2_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc p2"),
-                p2.x,
-                p2.y,
+                p2.coordinates().unwrap().x().clone(),
+                p2.coordinates().unwrap().y().clone(),
             )
             .unwrap();
             let condition = Boolean::constant(false);
@@ -989,18 +993,18 @@ mod test {
         {
             let mut cs = TestConstraintSystem::<Fp>::new();
 
-            let p1 = Secp256k1Affine::random(&mut rng);
-            let p2 = Secp256k1Affine::random(&mut rng);
+            let p1: Affine = Point::random(&mut rng).into();
+            let p2: Affine = Point::random(&mut rng).into();
             let p1_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc p1"),
-                p1.x,
-                p1.y,
+                p1.coordinates().unwrap().x().clone(),
+                p1.coordinates().unwrap().y().clone(),
             )
             .unwrap();
             let p2_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc p2"),
-                p2.x,
-                p2.y,
+                p2.coordinates().unwrap().x().clone(),
+                p2.coordinates().unwrap().y().clone(),
             )
             .unwrap();
             let condition = Boolean::constant(true);
@@ -1032,32 +1036,32 @@ mod test {
             let condition1 = Boolean::constant(c1);
             let select = &[condition1, condition0];
 
-            let a0_point = Secp256k1Affine::random(&mut rng);
+            let a0_point: Affine = Point::random(&mut rng).into();
             let a0 = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc a0"),
-                a0_point.x,
-                a0_point.y,
+                a0_point.coordinates().unwrap().x().clone(),
+                a0_point.coordinates().unwrap().y().clone(),
             )
             .unwrap();
-            let a1_point = Secp256k1Affine::random(&mut rng);
+            let a1_point: Affine = Point::random(&mut rng).into();
             let a1 = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc a1"),
-                a1_point.x,
-                a1_point.y,
+                a1_point.coordinates().unwrap().x().clone(),
+                a1_point.coordinates().unwrap().y().clone(),
             )
             .unwrap();
-            let a2_point = Secp256k1Affine::random(&mut rng);
+            let a2_point: Affine = Point::random(&mut rng).into();
             let a2 = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc a2"),
-                a2_point.x,
-                a2_point.y,
+                a2_point.coordinates().unwrap().x().clone(),
+                a2_point.coordinates().unwrap().y().clone(),
             )
             .unwrap();
-            let a3_point = Secp256k1Affine::random(&mut rng);
+            let a3_point: Affine = Point::random(&mut rng).into();
             let a3 = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc a3"),
-                a3_point.x,
-                a3_point.y,
+                a3_point.coordinates().unwrap().x().clone(),
+                a3_point.coordinates().unwrap().y().clone(),
             )
             .unwrap();
 
@@ -1103,20 +1107,20 @@ mod test {
         for _ in 0..100 {
             let mut cs = TestConstraintSystem::<Fp>::new();
 
-            let p1 = Secp256k1Affine::random(&mut rng);
-            let p2 = Secp256k1Affine::random(&mut rng);
-            let add_exp: Secp256k1Affine = (p1 + p2).try_into().unwrap();
+            let p1: Affine = Point::random(&mut rng).into();
+            let p2: Affine = Point::random(&mut rng).into();
+            let add_exp: Affine = (p1 + p2).try_into().unwrap();
 
             let p1_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc p1"),
-                p1.x,
-                p1.y,
+                p1.coordinates().unwrap().x().clone(),
+                p1.coordinates().unwrap().y().clone(),
             )
             .unwrap();
             let p2_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc p2"),
-                p2.x,
-                p2.y,
+                p2.coordinates().unwrap().x().clone(),
+                p2.coordinates().unwrap().y().clone(),
             )
             .unwrap();
             let add_alloc = AllocatedAffinePoint::add_incomplete(
@@ -1128,8 +1132,14 @@ mod test {
 
             assert!(cs.is_satisfied());
             assert_eq!(cs.num_constraints(), 3);
-            assert_eq!(add_exp.x, add_alloc.x.get_value().unwrap());
-            assert_eq!(add_exp.y, add_alloc.y.get_value().unwrap());
+            assert_eq!(
+                add_exp.coordinates().unwrap().x().clone(),
+                add_alloc.x.get_value().unwrap()
+            );
+            assert_eq!(
+                add_exp.coordinates().unwrap().y().clone(),
+                add_alloc.y.get_value().unwrap()
+            );
         }
     }
 
@@ -1170,10 +1180,13 @@ mod test {
             )
             .unwrap();
 
-            let q = Secp256k1Affine::random(&mut rng);
-            let q_alloc =
-                AllocatedAffinePoint::alloc_affine_point(&mut cs.namespace(|| "alloc Q"), q.x, q.y)
-                    .unwrap();
+            let q: Affine = Point::random(&mut rng).into();
+            let q_alloc = AllocatedAffinePoint::alloc_affine_point(
+                &mut cs.namespace(|| "alloc Q"),
+                q.coordinates().unwrap().x().clone(),
+                q.coordinates().unwrap().y().clone(),
+            )
+            .unwrap();
 
             let add_alloc = AllocatedAffinePoint::add_complete(
                 &mut cs.namespace(|| "O + Q"),
@@ -1183,8 +1196,14 @@ mod test {
             .unwrap();
             assert!(cs.is_satisfied());
             assert_eq!(cs.num_constraints(), 36);
-            assert_eq!(q.x, add_alloc.x.get_value().unwrap());
-            assert_eq!(q.y, add_alloc.y.get_value().unwrap());
+            assert_eq!(
+                q.coordinates().unwrap().x().clone(),
+                add_alloc.x.get_value().unwrap()
+            );
+            assert_eq!(
+                q.coordinates().unwrap().y().clone(),
+                add_alloc.y.get_value().unwrap()
+            );
         }
 
         {
@@ -1201,10 +1220,13 @@ mod test {
             )
             .unwrap();
 
-            let p = Secp256k1Affine::random(&mut rng);
-            let p_alloc =
-                AllocatedAffinePoint::alloc_affine_point(&mut cs.namespace(|| "alloc P"), p.x, p.y)
-                    .unwrap();
+            let p: Affine = Point::random(&mut rng).into();
+            let p_alloc = AllocatedAffinePoint::alloc_affine_point(
+                &mut cs.namespace(|| "alloc P"),
+                p.coordinates().unwrap().x().clone(),
+                p.coordinates().unwrap().y().clone(),
+            )
+            .unwrap();
 
             let add_alloc = AllocatedAffinePoint::add_complete(
                 &mut cs.namespace(|| "P + O"),
@@ -1214,8 +1236,14 @@ mod test {
             .unwrap();
             assert!(cs.is_satisfied());
             assert_eq!(cs.num_constraints(), 36);
-            assert_eq!(p.x, add_alloc.x.get_value().unwrap());
-            assert_eq!(p.y, add_alloc.y.get_value().unwrap());
+            assert_eq!(
+                p.coordinates().unwrap().x().clone(),
+                add_alloc.x.get_value().unwrap()
+            );
+            assert_eq!(
+                p.coordinates().unwrap().y().clone(),
+                add_alloc.y.get_value().unwrap()
+            );
         }
 
         {
@@ -1226,11 +1254,14 @@ mod test {
             ]);
             let mut cs = TestConstraintSystem::<Fp>::new();
 
-            let p = Secp256k1Affine::random(&mut rng);
-            let p_double: Secp256k1Affine = (p + p).try_into().unwrap();
-            let p_alloc =
-                AllocatedAffinePoint::alloc_affine_point(&mut cs.namespace(|| "alloc P"), p.x, p.y)
-                    .unwrap();
+            let p: Affine = Point::random(&mut rng).into();
+            let p_double: Affine = (p + p).try_into().unwrap();
+            let p_alloc = AllocatedAffinePoint::alloc_affine_point(
+                &mut cs.namespace(|| "alloc P"),
+                p.coordinates().unwrap().x().clone(),
+                p.coordinates().unwrap().y().clone(),
+            )
+            .unwrap();
 
             let add_alloc = AllocatedAffinePoint::add_complete(
                 &mut cs.namespace(|| "P + P"),
@@ -1240,8 +1271,14 @@ mod test {
             .unwrap();
             assert!(cs.is_satisfied());
             assert_eq!(cs.num_constraints(), 36);
-            assert_eq!(p_double.x, add_alloc.x.get_value().unwrap());
-            assert_eq!(p_double.y, add_alloc.y.get_value().unwrap());
+            assert_eq!(
+                p_double.coordinates().unwrap().x().clone(),
+                add_alloc.x.get_value().unwrap()
+            );
+            assert_eq!(
+                p_double.coordinates().unwrap().y().clone(),
+                add_alloc.y.get_value().unwrap()
+            );
         }
 
         {
@@ -1252,15 +1289,18 @@ mod test {
             ]);
             let mut cs = TestConstraintSystem::<Fp>::new();
 
-            let p = Secp256k1Affine::random(&mut rng);
+            let p: Affine = Point::random(&mut rng).into();
             let p_neg = p.neg();
-            let p_alloc =
-                AllocatedAffinePoint::alloc_affine_point(&mut cs.namespace(|| "alloc P"), p.x, p.y)
-                    .unwrap();
+            let p_alloc = AllocatedAffinePoint::alloc_affine_point(
+                &mut cs.namespace(|| "alloc P"),
+                p.coordinates().unwrap().x().clone(),
+                p.coordinates().unwrap().y().clone(),
+            )
+            .unwrap();
             let p_neg_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc P neg"),
-                p_neg.x,
-                p_neg.y,
+                p_neg.coordinates().unwrap().x().clone(),
+                p_neg.coordinates().unwrap().y().clone(),
             )
             .unwrap();
 
@@ -1286,20 +1326,20 @@ mod test {
             for _ in 0..100 {
                 let mut cs = TestConstraintSystem::<Fp>::new();
 
-                let p1 = Secp256k1Affine::random(&mut rng);
-                let p2 = Secp256k1Affine::random(&mut rng);
-                let add_exp: Secp256k1Affine = (p1 + p2).try_into().unwrap();
+                let p1: Affine = Point::random(&mut rng).into();
+                let p2: Affine = Point::random(&mut rng).into();
+                let add_exp: Affine = (p1 + p2).try_into().unwrap();
 
                 let p1_alloc = AllocatedAffinePoint::alloc_affine_point(
                     &mut cs.namespace(|| "alloc p1"),
-                    p1.x,
-                    p1.y,
+                    p1.coordinates().unwrap().x().clone(),
+                    p1.coordinates().unwrap().y().clone(),
                 )
                 .unwrap();
                 let p2_alloc = AllocatedAffinePoint::alloc_affine_point(
                     &mut cs.namespace(|| "alloc p2"),
-                    p2.x,
-                    p2.y,
+                    p2.coordinates().unwrap().x().clone(),
+                    p2.coordinates().unwrap().y().clone(),
                 )
                 .unwrap();
                 let add_alloc = AllocatedAffinePoint::add_complete(
@@ -1311,8 +1351,14 @@ mod test {
 
                 assert!(cs.is_satisfied());
                 assert_eq!(cs.num_constraints(), 36);
-                assert_eq!(add_exp.x, add_alloc.x.get_value().unwrap());
-                assert_eq!(add_exp.y, add_alloc.y.get_value().unwrap());
+                assert_eq!(
+                    add_exp.coordinates().unwrap().x().clone(),
+                    add_alloc.x.get_value().unwrap()
+                );
+                assert_eq!(
+                    add_exp.coordinates().unwrap().y().clone(),
+                    add_alloc.y.get_value().unwrap()
+                );
             }
         }
     }
@@ -1347,29 +1393,38 @@ mod test {
             ]);
             let mut cs = TestConstraintSystem::<Fp>::new();
 
-            let p = Secp256k1Affine::random(&mut rng);
-            let p_double: Secp256k1Affine = (p + p).try_into().unwrap();
-            let p_alloc =
-                AllocatedAffinePoint::alloc_affine_point(&mut cs.namespace(|| "alloc P"), p.x, p.y)
-                    .unwrap();
+            let p: Affine = Point::random(&mut rng).into();
+            let p_double: Affine = (p + p).try_into().unwrap();
+            let p_alloc = AllocatedAffinePoint::alloc_affine_point(
+                &mut cs.namespace(|| "alloc P"),
+                p.coordinates().unwrap().x().clone(),
+                p.coordinates().unwrap().y().clone(),
+            )
+            .unwrap();
 
             let double =
                 AllocatedAffinePoint::double(&mut cs.namespace(|| "P + P"), p_alloc).unwrap();
             assert!(cs.is_satisfied());
             assert_eq!(cs.num_constraints(), 4);
-            assert_eq!(p_double.x, double.x.get_value().unwrap());
-            assert_eq!(p_double.y, double.y.get_value().unwrap());
+            assert_eq!(
+                p_double.coordinates().unwrap().x().clone(),
+                double.x.get_value().unwrap()
+            );
+            assert_eq!(
+                p_double.coordinates().unwrap().y().clone(),
+                double.y.get_value().unwrap()
+            );
         }
     }
 
     #[test]
     fn scalar_multiplication_window_1() {
         let mut rng = rand::thread_rng();
-        let b = Secp256k1Affine::generator();
+        let b = Affine::generator();
 
         for _ in 0..100 {
             let scalar = Fq::random(&mut rng);
-            let p: Secp256k1Affine = b.mul(scalar).into();
+            let p: Affine = b.mul(scalar).into();
 
             let mut scalar_bigint = U256::from_le_bytes(scalar.to_repr());
             let mut scalar_vec: Vec<Boolean> = vec![];
@@ -1386,8 +1441,8 @@ mod test {
 
             let b_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "allocate base point"),
-                b.x,
-                b.y,
+                b.coordinates().unwrap().x().clone(),
+                b.coordinates().unwrap().y().clone(),
             );
             assert!(b_alloc.is_ok());
             let b_al = b_alloc.unwrap();
@@ -1399,8 +1454,14 @@ mod test {
             assert!(p_alloc.is_ok());
             let p_al = p_alloc.unwrap();
 
-            assert_eq!(p.x, p_al.x.get_value().unwrap());
-            assert_eq!(p.y, p_al.y.get_value().unwrap());
+            assert_eq!(
+                p.coordinates().unwrap().x().clone(),
+                p_al.x.get_value().unwrap()
+            );
+            assert_eq!(
+                p.coordinates().unwrap().y().clone(),
+                p_al.y.get_value().unwrap()
+            );
 
             assert!(cs.is_satisfied());
             assert_eq!(cs.num_constraints(), 10752);
@@ -1410,11 +1471,11 @@ mod test {
     #[test]
     fn scalar_multiplication_window_m() {
         let mut rng = rand::thread_rng();
-        let b = Secp256k1Affine::generator();
+        let b = Affine::generator();
 
         for _ in 0..100 {
             let scalar = Fq::random(&mut rng);
-            let p: Secp256k1Affine = b.mul(scalar).into();
+            let p: Affine = b.mul(scalar).into();
 
             let mut scalar_bigint = U256::from_le_bytes(scalar.to_repr());
             let mut scalar_vec: Vec<Boolean> = vec![];
@@ -1431,8 +1492,8 @@ mod test {
 
             let b_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "allocate base point"),
-                b.x,
-                b.y,
+                b.coordinates().unwrap().x().clone(),
+                b.coordinates().unwrap().y().clone(),
             );
             assert!(b_alloc.is_ok());
             let b_al = b_alloc.unwrap();
@@ -1445,8 +1506,14 @@ mod test {
             assert!(p_alloc.is_ok());
             let p_al = p_alloc.unwrap();
 
-            assert_eq!(p.x, p_al.x.get_value().unwrap());
-            assert_eq!(p.y, p_al.y.get_value().unwrap());
+            assert_eq!(
+                p.coordinates().unwrap().x().clone(),
+                p_al.x.get_value().unwrap()
+            );
+            assert_eq!(
+                p.coordinates().unwrap().y().clone(),
+                p_al.y.get_value().unwrap()
+            );
 
             assert!(cs.is_satisfied());
             assert_eq!(cs.num_constraints(), 5480);
@@ -1458,10 +1525,10 @@ mod test {
         {
             // (s + tQ) > q
             let q = U256::from_be_hex(
-                "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
+                "40000000000000000000000000000000224698fc0994a8dd8c46eb2100000001",
             );
             let tq = U256::from_be_hex(
-                "fffffffffffffffffffffffffffffffd755db9cd5e9140777fa4bd19a06c8282",
+                "00000000000000000000000000000000891a63f02652a376311bac8400000004",
             );
             let s = q
                 .checked_sub(&tq)
@@ -1492,10 +1559,10 @@ mod test {
         {
             // (s + tQ) < q
             let q = U256::from_be_hex(
-                "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
+                "40000000000000000000000000000000224698fc0994a8dd8c46eb2100000001",
             );
             let tq = U256::from_be_hex(
-                "fffffffffffffffffffffffffffffffd755db9cd5e9140777fa4bd19a06c8282",
+                "00000000000000000000000000000000891a63f02652a376311bac8400000004",
             );
             let s = q
                 .checked_sub(&tq)
@@ -1528,10 +1595,10 @@ mod test {
             for _ in 0..200 {
                 let mut rng = rand::thread_rng();
                 let q = U256::from_be_hex(
-                    "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
+                    "40000000000000000000000000000000224698fc0994a8dd8c46eb2100000001",
                 );
                 let tq = U256::from_be_hex(
-                    "fffffffffffffffffffffffffffffffd755db9cd5e9140777fa4bd19a06c8282",
+                    "00000000000000000000000000000000891a63f02652a376311bac8400000004",
                 );
                 let s_fe = Fq::random(&mut rng);
                 let s = U256::from_le_bytes(s_fe.to_repr());
@@ -1564,16 +1631,16 @@ mod test {
             // Random scalar
             for _ in 0..100 {
                 let mut rng = rand::thread_rng();
-                let b = Secp256k1Affine::generator();
+                let b = Affine::generator();
                 let scalar = Fq::random(&mut rng);
-                let p: Secp256k1Affine = b.mul(scalar).into();
+                let p: Affine = b.mul(scalar).into();
 
                 let mut cs = TestConstraintSystem::<Fp>::new();
 
                 let b_alloc = AllocatedAffinePoint::alloc_affine_point(
                     &mut cs.namespace(|| "allocate base point"),
-                    b.x,
-                    b.y,
+                    b.coordinates().unwrap().x().clone(),
+                    b.coordinates().unwrap().y().clone(),
                 );
                 assert!(b_alloc.is_ok());
                 let b_al = b_alloc.unwrap();
@@ -1585,8 +1652,14 @@ mod test {
                 assert!(p_alloc.is_ok());
                 let p_al = p_alloc.unwrap();
 
-                assert_eq!(p.x, p_al.x.get_value().unwrap());
-                assert_eq!(p.y, p_al.y.get_value().unwrap());
+                assert_eq!(
+                    p.coordinates().unwrap().x().clone(),
+                    p_al.x.get_value().unwrap()
+                );
+                assert_eq!(
+                    p.coordinates().unwrap().y().clone(),
+                    p_al.y.get_value().unwrap()
+                );
 
                 assert!(cs.is_satisfied());
                 assert_eq!(cs.num_constraints(), 3343);
@@ -1595,16 +1668,16 @@ mod test {
 
         {
             // scalar = 0
-            let b = Secp256k1Affine::generator();
+            let b = Affine::generator();
             let scalar = Fq::ZERO;
-            let p: Secp256k1Affine = b.mul(scalar).into();
+            let p: Affine = b.mul(scalar).into();
 
             let mut cs = TestConstraintSystem::<Fp>::new();
 
             let b_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "allocate base point"),
-                b.x,
-                b.y,
+                b.coordinates().unwrap().x().clone(),
+                b.coordinates().unwrap().y().clone(),
             );
             assert!(b_alloc.is_ok());
             let b_al = b_alloc.unwrap();
@@ -1616,8 +1689,14 @@ mod test {
             assert!(p_alloc.is_ok());
             let p_al = p_alloc.unwrap();
 
-            assert_eq!(p.x, p_al.x.get_value().unwrap());
-            assert_eq!(p.y, p_al.y.get_value().unwrap());
+            assert_eq!(
+                p.coordinates().unwrap().x().clone(),
+                p_al.x.get_value().unwrap()
+            );
+            assert_eq!(
+                p.coordinates().unwrap().y().clone(),
+                p_al.y.get_value().unwrap()
+            );
 
             assert!(cs.is_satisfied());
             assert_eq!(cs.num_constraints(), 3343);
@@ -1625,16 +1704,16 @@ mod test {
 
         {
             // scalar = q - 1
-            let b = Secp256k1Affine::generator();
+            let b = Affine::generator();
             let scalar = Fq::ZERO - Fq::ONE;
-            let p: Secp256k1Affine = b.mul(scalar).into();
+            let p: Affine = b.mul(scalar).into();
 
             let mut cs = TestConstraintSystem::<Fp>::new();
 
             let b_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "allocate base point"),
-                b.x,
-                b.y,
+                b.coordinates().unwrap().x().clone(),
+                b.coordinates().unwrap().y().clone(),
             );
             assert!(b_alloc.is_ok());
             let b_al = b_alloc.unwrap();
@@ -1646,8 +1725,14 @@ mod test {
             assert!(p_alloc.is_ok());
             let p_al = p_alloc.unwrap();
 
-            assert_eq!(p.x, p_al.x.get_value().unwrap());
-            assert_eq!(p.y, p_al.y.get_value().unwrap());
+            assert_eq!(
+                p.coordinates().unwrap().x().clone(),
+                p_al.x.get_value().unwrap()
+            );
+            assert_eq!(
+                p.coordinates().unwrap().y().clone(),
+                p_al.y.get_value().unwrap()
+            );
 
             assert!(cs.is_satisfied());
             assert_eq!(cs.num_constraints(), 3343);
