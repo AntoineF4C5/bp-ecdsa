@@ -98,7 +98,7 @@ where
     let two_pow_n = Scalar::from_repr((U256::from(1u64) << n).to_le_bytes()).unwrap();
     let alloc_two_pow_n =
         AllocatedNum::alloc(&mut cs.namespace(|| "alloc two_pow_n"), || Ok(two_pow_n))?;
-    let diff = num0.sub(&mut cs.namespace(|| "num0 - num1"), &num1)?;
+    let diff = sub(&mut cs.namespace(|| "num0 - num1"), &num0, &num1)?;
     let diff_plus = diff.add(&mut cs.namespace(|| "diff + two_pow_n"), &alloc_two_pow_n)?;
 
     let bits = field_into_allocated_bits_le(&mut cs, diff_plus.get_value(), n + 1)?;
@@ -136,6 +136,146 @@ where
     let one = AllocatedNum::alloc(&mut cs.namespace(|| "alloc one"), || Ok(Scalar::ONE))?;
     let num0_plus_one = num0.add(&mut cs.namespace(|| "num0 + 1"), &one)?;
     is_less(&mut cs, num1, num0_plus_one, n)
+}
+
+/// Returns (self - other)
+pub fn sub<CS, Scalar>(
+    mut cs: CS,
+    a: &AllocatedNum<Scalar>,
+    other: &AllocatedNum<Scalar>,
+) -> Result<AllocatedNum<Scalar>, SynthesisError>
+where
+    CS: ConstraintSystem<Scalar>,
+    Scalar: PrimeField,
+{
+    let res = AllocatedNum::alloc(cs.namespace(|| "res"), || {
+        let mut tmp = a.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+        tmp.sub_assign(other.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+
+        Ok(tmp)
+    })?;
+
+    // Constrain: (a - b) * 1 = a - b
+    cs.enforce(
+        || "subtraction constraint",
+        |lc| lc + a.get_variable() - other.get_variable(),
+        |lc| lc + CS::one(),
+        |lc| lc + res.get_variable(),
+    );
+
+    Ok(res)
+}
+
+/// Returns (-self)
+pub fn neg<CS, Scalar>(
+    mut cs: CS,
+    a: &AllocatedNum<Scalar>,
+) -> Result<AllocatedNum<Scalar>, SynthesisError>
+where
+    CS: ConstraintSystem<Scalar>,
+    Scalar: PrimeField,
+{
+    let res = AllocatedNum::alloc(cs.namespace(|| "neg num"), || {
+        let tmp = a
+            .get_value()
+            .ok_or(SynthesisError::AssignmentMissing)?
+            .neg();
+
+        Ok(tmp)
+    })?;
+
+    // Constrain: (self + var) = 0
+    cs.enforce(
+        || "negation constraint",
+        |lc| lc,
+        |lc| lc,
+        |lc| lc + a.get_variable() + res.get_variable(),
+    );
+
+    Ok(res)
+}
+
+/// Returns the bit `self == 0`
+pub fn is_zero<CS, Scalar>(mut cs: CS, a: &AllocatedNum<Scalar>) -> Result<Boolean, SynthesisError>
+where
+    CS: ConstraintSystem<Scalar>,
+    Scalar: PrimeField,
+{
+    let out = AllocatedBit::alloc(&mut cs.namespace(|| "out bit"), {
+        let input_value = a.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+        Some(input_value == Scalar::ZERO)
+    })?;
+    let multiplier = AllocatedNum::alloc(&mut cs.namespace(|| "zero or inverse"), || {
+        let tmp = a.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+
+        if tmp.is_zero().into() {
+            Ok(Scalar::ZERO)
+        } else {
+            Ok(tmp.invert().unwrap())
+        }
+    })?;
+
+    cs.enforce(
+        || "multiplier * input === 1 - out",
+        |lc| lc + multiplier.get_variable(),
+        |lc| lc + a.get_variable(),
+        |lc| lc + CS::one() - out.get_variable(),
+    );
+
+    cs.enforce(
+        || "out * input === 0",
+        |lc| lc + out.get_variable(),
+        |lc| lc + a.get_variable(),
+        |lc| lc,
+    );
+    Ok(Boolean::from(out))
+}
+
+/// Takes two allocated numbers (self, other) and returns
+/// the bit `self==other`
+pub fn is_equal<CS, Scalar>(
+    mut cs: CS,
+    a: &AllocatedNum<Scalar>,
+    other: &AllocatedNum<Scalar>,
+) -> Result<Boolean, SynthesisError>
+where
+    CS: ConstraintSystem<Scalar>,
+    Scalar: PrimeField,
+{
+    let diff = sub(&mut cs.namespace(|| "self-other"), a, other)?;
+    is_zero(cs, &diff)
+}
+
+/// Takes two allocated numbers (a, b) and returns
+/// a if condition is false, and b otherwise
+pub fn conditionally_select<CS, Scalar>(
+    mut cs: CS,
+    a: &AllocatedNum<Scalar>,
+    b: &AllocatedNum<Scalar>,
+    condition: &Boolean,
+) -> Result<AllocatedNum<Scalar>, SynthesisError>
+where
+    CS: ConstraintSystem<Scalar>,
+    Scalar: PrimeField,
+{
+    let c = AllocatedNum::alloc(&mut cs.namespace(|| "alloc output"), || {
+        if condition
+            .get_value()
+            .ok_or(SynthesisError::AssignmentMissing)?
+        {
+            Ok(b.get_value().ok_or(SynthesisError::AssignmentMissing)?)
+        } else {
+            Ok(a.get_value().ok_or(SynthesisError::AssignmentMissing)?)
+        }
+    })?;
+    cs.enforce(
+        || "condition * (a - b) === a - c",
+        |_| condition.lc(CS::one(), Scalar::ONE),
+        |lc| lc + a.get_variable() - b.get_variable(),
+        |lc| lc + a.get_variable() - c.get_variable(),
+    );
+
+    Ok(c)
 }
 
 #[cfg(test)]
