@@ -283,11 +283,15 @@ mod test {
     use super::*;
     use bellpepper_core::test_cs::TestConstraintSystem;
     use ff::Field;
-    use halo2curves::secp256k1::Fp;
+    // use halo2curves::secp256k1::Fp;
+    use nova::provider::Secp256k1Engine;
+    use nova::traits::Engine;
     use rand::Rng;
     use rand_core::SeedableRng;
     use rand_xorshift::XorShiftRng;
     use std::ops::SubAssign;
+
+    type Fp = <Secp256k1Engine as Engine>::Base;
 
     #[test]
     fn test_into_bits() {

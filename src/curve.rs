@@ -946,10 +946,17 @@ mod test {
     use bellpepper_core::test_cs::TestConstraintSystem;
     use crypto_bigint::{CheckedAdd, CheckedSub, Encoding, Integer, U256};
     use ff::Field;
-    use halo2curves::secp256k1::{Fp, Fq, Secp256k1Affine};
+    // use halo2curves::secp256k1::{Fp, Fq, Secp256k1Affine};
+    use halo2curves::group::{Curve, Group};
+    use nova::provider::Secp256k1Engine;
+    use nova::traits::Engine;
     use rand_core::SeedableRng;
     use rand_xorshift::XorShiftRng;
     use std::ops::{Mul, Neg};
+
+    type Fp = <Secp256k1Engine as Engine>::Base;
+    type Fq = <Secp256k1Engine as Engine>::Scalar;
+    type GE = <Secp256k1Engine as Engine>::GE;
 
     #[test]
     fn test_conditional_select() {
@@ -960,8 +967,8 @@ mod test {
         {
             let mut cs = TestConstraintSystem::<Fp>::new();
 
-            let p1 = Secp256k1Affine::random(&mut rng);
-            let p2 = Secp256k1Affine::random(&mut rng);
+            let p1 = GE::random(&mut rng).to_affine();
+            let p2 = GE::random(&mut rng).to_affine();
             let p1_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc p1"),
                 p1.x,
@@ -989,8 +996,8 @@ mod test {
         {
             let mut cs = TestConstraintSystem::<Fp>::new();
 
-            let p1 = Secp256k1Affine::random(&mut rng);
-            let p2 = Secp256k1Affine::random(&mut rng);
+            let p1 = GE::random(&mut rng).to_affine();
+            let p2 = GE::random(&mut rng).to_affine();
             let p1_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc p1"),
                 p1.x,
@@ -1032,28 +1039,28 @@ mod test {
             let condition1 = Boolean::constant(c1);
             let select = &[condition1, condition0];
 
-            let a0_point = Secp256k1Affine::random(&mut rng);
+            let a0_point = GE::random(&mut rng);
             let a0 = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc a0"),
                 a0_point.x,
                 a0_point.y,
             )
             .unwrap();
-            let a1_point = Secp256k1Affine::random(&mut rng);
+            let a1_point = GE::random(&mut rng);
             let a1 = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc a1"),
                 a1_point.x,
                 a1_point.y,
             )
             .unwrap();
-            let a2_point = Secp256k1Affine::random(&mut rng);
+            let a2_point = GE::random(&mut rng);
             let a2 = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc a2"),
                 a2_point.x,
                 a2_point.y,
             )
             .unwrap();
-            let a3_point = Secp256k1Affine::random(&mut rng);
+            let a3_point = GE::random(&mut rng);
             let a3 = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc a3"),
                 a3_point.x,
@@ -1103,20 +1110,23 @@ mod test {
         for _ in 0..100 {
             let mut cs = TestConstraintSystem::<Fp>::new();
 
-            let p1 = Secp256k1Affine::random(&mut rng);
-            let p2 = Secp256k1Affine::random(&mut rng);
-            let add_exp: Secp256k1Affine = (p1 + p2).try_into().unwrap();
+            let p1 = GE::random(&mut rng);
+            let p1_affine = p1.to_affine();
+            let p2 = GE::random(&mut rng);
+            let p2_affine = p2.to_affine();
+            let add_exp: GE = (p1 + p2).try_into().unwrap();
+            let add_exp_affine = add_exp.to_affine();
 
             let p1_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc p1"),
-                p1.x,
-                p1.y,
+                p1_affine.x,
+                p1_affine.y,
             )
             .unwrap();
             let p2_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc p2"),
-                p2.x,
-                p2.y,
+                p2_affine.x,
+                p2_affine.y,
             )
             .unwrap();
             let add_alloc = AllocatedAffinePoint::add_incomplete(
@@ -1128,8 +1138,8 @@ mod test {
 
             assert!(cs.is_satisfied());
             assert_eq!(cs.num_constraints(), 3);
-            assert_eq!(add_exp.x, add_alloc.x.get_value().unwrap());
-            assert_eq!(add_exp.y, add_alloc.y.get_value().unwrap());
+            assert_eq!(add_exp_affine.x, add_alloc.x.get_value().unwrap());
+            assert_eq!(add_exp_affine.y, add_alloc.y.get_value().unwrap());
         }
     }
 
@@ -1170,7 +1180,7 @@ mod test {
             )
             .unwrap();
 
-            let q = Secp256k1Affine::random(&mut rng);
+            let q = GE::random(&mut rng).to_affine();
             let q_alloc =
                 AllocatedAffinePoint::alloc_affine_point(&mut cs.namespace(|| "alloc Q"), q.x, q.y)
                     .unwrap();
@@ -1201,7 +1211,7 @@ mod test {
             )
             .unwrap();
 
-            let p = Secp256k1Affine::random(&mut rng);
+            let p = GE::random(&mut rng).to_affine();
             let p_alloc =
                 AllocatedAffinePoint::alloc_affine_point(&mut cs.namespace(|| "alloc P"), p.x, p.y)
                     .unwrap();
@@ -1226,11 +1236,16 @@ mod test {
             ]);
             let mut cs = TestConstraintSystem::<Fp>::new();
 
-            let p = Secp256k1Affine::random(&mut rng);
-            let p_double: Secp256k1Affine = (p + p).try_into().unwrap();
-            let p_alloc =
-                AllocatedAffinePoint::alloc_affine_point(&mut cs.namespace(|| "alloc P"), p.x, p.y)
-                    .unwrap();
+            let p = GE::random(&mut rng);
+            let p_affine = p.to_affine();
+            let p_double: GE = (p + p).try_into().unwrap();
+            let p_double_affine = p_double.to_affine();
+            let p_alloc = AllocatedAffinePoint::alloc_affine_point(
+                &mut cs.namespace(|| "alloc P"),
+                p_affine.x,
+                p_affine.y,
+            )
+            .unwrap();
 
             let add_alloc = AllocatedAffinePoint::add_complete(
                 &mut cs.namespace(|| "P + P"),
@@ -1240,8 +1255,8 @@ mod test {
             .unwrap();
             assert!(cs.is_satisfied());
             assert_eq!(cs.num_constraints(), 36);
-            assert_eq!(p_double.x, add_alloc.x.get_value().unwrap());
-            assert_eq!(p_double.y, add_alloc.y.get_value().unwrap());
+            assert_eq!(p_double_affine.x, add_alloc.x.get_value().unwrap());
+            assert_eq!(p_double_affine.y, add_alloc.y.get_value().unwrap());
         }
 
         {
@@ -1252,15 +1267,20 @@ mod test {
             ]);
             let mut cs = TestConstraintSystem::<Fp>::new();
 
-            let p = Secp256k1Affine::random(&mut rng);
+            let p = GE::random(&mut rng);
+            let p_affine = p.to_affine();
             let p_neg = p.neg();
-            let p_alloc =
-                AllocatedAffinePoint::alloc_affine_point(&mut cs.namespace(|| "alloc P"), p.x, p.y)
-                    .unwrap();
+            let p_neg_affine = p_neg.to_affine();
+            let p_alloc = AllocatedAffinePoint::alloc_affine_point(
+                &mut cs.namespace(|| "alloc P"),
+                p_affine.x,
+                p_affine.y,
+            )
+            .unwrap();
             let p_neg_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "alloc P neg"),
-                p_neg.x,
-                p_neg.y,
+                p_neg_affine.x,
+                p_neg_affine.y,
             )
             .unwrap();
 
@@ -1286,20 +1306,23 @@ mod test {
             for _ in 0..100 {
                 let mut cs = TestConstraintSystem::<Fp>::new();
 
-                let p1 = Secp256k1Affine::random(&mut rng);
-                let p2 = Secp256k1Affine::random(&mut rng);
-                let add_exp: Secp256k1Affine = (p1 + p2).try_into().unwrap();
+                let p1 = GE::random(&mut rng);
+                let p1_affine = p1.to_affine();
+                let p2 = GE::random(&mut rng);
+                let p2_affine = p2.to_affine();
+                let add_exp: GE = (p1 + p2).try_into().unwrap();
+                let add_exp_affine = add_exp.to_affine();
 
                 let p1_alloc = AllocatedAffinePoint::alloc_affine_point(
                     &mut cs.namespace(|| "alloc p1"),
-                    p1.x,
-                    p1.y,
+                    p1_affine.x,
+                    p1_affine.y,
                 )
                 .unwrap();
                 let p2_alloc = AllocatedAffinePoint::alloc_affine_point(
                     &mut cs.namespace(|| "alloc p2"),
-                    p2.x,
-                    p2.y,
+                    p2_affine.x,
+                    p2_affine.y,
                 )
                 .unwrap();
                 let add_alloc = AllocatedAffinePoint::add_complete(
@@ -1311,8 +1334,8 @@ mod test {
 
                 assert!(cs.is_satisfied());
                 assert_eq!(cs.num_constraints(), 36);
-                assert_eq!(add_exp.x, add_alloc.x.get_value().unwrap());
-                assert_eq!(add_exp.y, add_alloc.y.get_value().unwrap());
+                assert_eq!(add_exp_affine.x, add_alloc.x.get_value().unwrap());
+                assert_eq!(add_exp_affine.y, add_alloc.y.get_value().unwrap());
             }
         }
     }
@@ -1347,8 +1370,9 @@ mod test {
             ]);
             let mut cs = TestConstraintSystem::<Fp>::new();
 
-            let p = Secp256k1Affine::random(&mut rng);
-            let p_double: Secp256k1Affine = (p + p).try_into().unwrap();
+            let p = GE::random(&mut rng).to_affine();
+            let p_double: GE = (p + p).try_into().unwrap();
+            let p_double = p_double.to_affine();
             let p_alloc =
                 AllocatedAffinePoint::alloc_affine_point(&mut cs.namespace(|| "alloc P"), p.x, p.y)
                     .unwrap();
@@ -1365,11 +1389,11 @@ mod test {
     #[test]
     fn scalar_multiplication_window_1() {
         let mut rng = rand::thread_rng();
-        let b = Secp256k1Affine::generator();
+        let b = GE::generator();
 
         for _ in 0..100 {
             let scalar = Fq::random(&mut rng);
-            let p: Secp256k1Affine = b.mul(scalar).into();
+            let p: GE = b.mul(scalar).into();
 
             let mut scalar_bigint = U256::from_le_bytes(scalar.to_repr());
             let mut scalar_vec: Vec<Boolean> = vec![];
@@ -1384,10 +1408,11 @@ mod test {
 
             let mut cs = TestConstraintSystem::<Fp>::new();
 
+            let b_affine = b.to_affine();
             let b_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "allocate base point"),
-                b.x,
-                b.y,
+                b_affine.x,
+                b_affine.y,
             );
             assert!(b_alloc.is_ok());
             let b_al = b_alloc.unwrap();
@@ -1399,8 +1424,10 @@ mod test {
             assert!(p_alloc.is_ok());
             let p_al = p_alloc.unwrap();
 
-            assert_eq!(p.x, p_al.x.get_value().unwrap());
-            assert_eq!(p.y, p_al.y.get_value().unwrap());
+            let p_affine = p.to_affine();
+
+            assert_eq!(p_affine.x, p_al.x.get_value().unwrap());
+            assert_eq!(p_affine.y, p_al.y.get_value().unwrap());
 
             assert!(cs.is_satisfied());
             assert_eq!(cs.num_constraints(), 10752);
@@ -1410,11 +1437,13 @@ mod test {
     #[test]
     fn scalar_multiplication_window_m() {
         let mut rng = rand::thread_rng();
-        let b = Secp256k1Affine::generator();
+        let b = GE::generator();
+        let b_affine = b.to_affine();
 
         for _ in 0..100 {
             let scalar = Fq::random(&mut rng);
-            let p: Secp256k1Affine = b.mul(scalar).into();
+            let p: GE = b.mul(scalar).into();
+            let p_affine = p.to_affine();
 
             let mut scalar_bigint = U256::from_le_bytes(scalar.to_repr());
             let mut scalar_vec: Vec<Boolean> = vec![];
@@ -1431,8 +1460,8 @@ mod test {
 
             let b_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "allocate base point"),
-                b.x,
-                b.y,
+                b_affine.x,
+                b_affine.y,
             );
             assert!(b_alloc.is_ok());
             let b_al = b_alloc.unwrap();
@@ -1445,8 +1474,8 @@ mod test {
             assert!(p_alloc.is_ok());
             let p_al = p_alloc.unwrap();
 
-            assert_eq!(p.x, p_al.x.get_value().unwrap());
-            assert_eq!(p.y, p_al.y.get_value().unwrap());
+            assert_eq!(p_affine.x, p_al.x.get_value().unwrap());
+            assert_eq!(p_affine.y, p_al.y.get_value().unwrap());
 
             assert!(cs.is_satisfied());
             assert_eq!(cs.num_constraints(), 5480);
@@ -1564,16 +1593,18 @@ mod test {
             // Random scalar
             for _ in 0..100 {
                 let mut rng = rand::thread_rng();
-                let b = Secp256k1Affine::generator();
+                let b = GE::generator();
+                let b_affine = b.to_affine();
                 let scalar = Fq::random(&mut rng);
-                let p: Secp256k1Affine = b.mul(scalar).into();
+                let p: GE = b.mul(scalar).into();
+                let p_affine = p.to_affine();
 
                 let mut cs = TestConstraintSystem::<Fp>::new();
 
                 let b_alloc = AllocatedAffinePoint::alloc_affine_point(
                     &mut cs.namespace(|| "allocate base point"),
-                    b.x,
-                    b.y,
+                    b_affine.x,
+                    b_affine.y,
                 );
                 assert!(b_alloc.is_ok());
                 let b_al = b_alloc.unwrap();
@@ -1585,8 +1616,8 @@ mod test {
                 assert!(p_alloc.is_ok());
                 let p_al = p_alloc.unwrap();
 
-                assert_eq!(p.x, p_al.x.get_value().unwrap());
-                assert_eq!(p.y, p_al.y.get_value().unwrap());
+                assert_eq!(p_affine.x, p_al.x.get_value().unwrap());
+                assert_eq!(p_affine.y, p_al.y.get_value().unwrap());
 
                 assert!(cs.is_satisfied());
                 assert_eq!(cs.num_constraints(), 3343);
@@ -1595,16 +1626,18 @@ mod test {
 
         {
             // scalar = 0
-            let b = Secp256k1Affine::generator();
+            let b = GE::generator();
+            let b_affine = b.to_affine();
             let scalar = Fq::ZERO;
-            let p: Secp256k1Affine = b.mul(scalar).into();
+            let p: GE = b.mul(scalar).into();
+            let p_affine = p.to_affine();
 
             let mut cs = TestConstraintSystem::<Fp>::new();
 
             let b_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "allocate base point"),
-                b.x,
-                b.y,
+                b_affine.x,
+                b_affine.y,
             );
             assert!(b_alloc.is_ok());
             let b_al = b_alloc.unwrap();
@@ -1616,8 +1649,8 @@ mod test {
             assert!(p_alloc.is_ok());
             let p_al = p_alloc.unwrap();
 
-            assert_eq!(p.x, p_al.x.get_value().unwrap());
-            assert_eq!(p.y, p_al.y.get_value().unwrap());
+            assert_eq!(p_affine.x, p_al.x.get_value().unwrap());
+            assert_eq!(p_affine.y, p_al.y.get_value().unwrap());
 
             assert!(cs.is_satisfied());
             assert_eq!(cs.num_constraints(), 3343);
@@ -1625,16 +1658,18 @@ mod test {
 
         {
             // scalar = q - 1
-            let b = Secp256k1Affine::generator();
+            let b = GE::generator();
+            let b_affine = b.to_affine();
             let scalar = Fq::ZERO - Fq::ONE;
-            let p: Secp256k1Affine = b.mul(scalar).into();
+            let p: GE = b.mul(scalar).into();
+            let p_affine = p.to_affine();
 
             let mut cs = TestConstraintSystem::<Fp>::new();
 
             let b_alloc = AllocatedAffinePoint::alloc_affine_point(
                 &mut cs.namespace(|| "allocate base point"),
-                b.x,
-                b.y,
+                b_affine.x,
+                b_affine.y,
             );
             assert!(b_alloc.is_ok());
             let b_al = b_alloc.unwrap();
@@ -1646,8 +1681,8 @@ mod test {
             assert!(p_alloc.is_ok());
             let p_al = p_alloc.unwrap();
 
-            assert_eq!(p.x, p_al.x.get_value().unwrap());
-            assert_eq!(p.y, p_al.y.get_value().unwrap());
+            assert_eq!(p_affine.x, p_al.x.get_value().unwrap());
+            assert_eq!(p_affine.y, p_al.y.get_value().unwrap());
 
             assert!(cs.is_satisfied());
             assert_eq!(cs.num_constraints(), 3343);
