@@ -202,7 +202,7 @@ where
     Scalar: PrimeField,
 {
     let out = AllocatedBit::alloc(&mut cs.namespace(|| "out bit"), {
-        let input_value = a.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+        let input_value = a.get_value().unwrap_or(Scalar::ZERO);
         Some(input_value == Scalar::ZERO)
     })?;
     let multiplier = AllocatedNum::alloc(&mut cs.namespace(|| "zero or inverse"), || {

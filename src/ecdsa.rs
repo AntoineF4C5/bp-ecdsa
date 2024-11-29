@@ -28,7 +28,7 @@ mod test {
     use bellpepper_core::test_cs::TestConstraintSystem;
     use crypto_bigint::{Encoding, U256};
     use ff::Field;
-    use halo2curves::group::{Curve, Group};
+    use halo2curves::group::Curve;
     // use halo2curves::secp256k1::{Fp, Fq, Secp256k1Affine};
     use nova::provider::Secp256k1Engine;
     use nova::traits::Engine;

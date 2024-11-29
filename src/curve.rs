@@ -54,15 +54,8 @@ impl<F: PrimeField<Repr = [u8; 32]> + PrimeFieldBits> AllocatedAffinePoint<F> {
     where
         CS: ConstraintSystem<F>,
     {
-        let out_x = self
-            .x
-            .get_value()
-            .ok_or(SynthesisError::AssignmentMissing)?;
-        let out_y = self
-            .y
-            .get_value()
-            .ok_or(SynthesisError::AssignmentMissing)?
-            .neg();
+        let out_x = self.x.get_value().unwrap_or(F::ZERO);
+        let out_y = self.y.get_value().unwrap_or(F::ZERO).neg();
 
         let out = AllocatedAffinePoint::alloc_affine_point(
             &mut cs.namespace(|| "alloc out"),
@@ -366,8 +359,7 @@ impl<F: PrimeField<Repr = [u8; 32]> + PrimeFieldBits> AllocatedAffinePoint<F> {
             &mut cs.namespace(|| "alloc add_y_is_zero"),
             {
                 Some(
-                    p.y.get_value().ok_or(SynthesisError::AssignmentMissing)?
-                        + q.y.get_value().ok_or(SynthesisError::AssignmentMissing)?
+                    p.y.get_value().unwrap_or(F::ZERO) + q.y.get_value().unwrap_or(F::ZERO)
                         == F::ZERO,
                 )
             },
